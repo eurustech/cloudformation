@@ -8,7 +8,7 @@ Import vpc-template.yml stack
 ### Step 2
 Import RDS-template.yml stack
 ### Step 3
-#### With Autoscaling
+- ####With Autoscaling
 Import EC2-template-Autoscaling.yml stack
-#### Without Autoscaling
+- ####Without Autoscaling
 Import EC2-template.yml stack
