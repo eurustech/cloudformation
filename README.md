@@ -1,7 +1,4 @@
-# cloudformation
-CloudFormation script to setup AWS infrastructure
-
-# Cloud Formation Script to setup a sample aws infrastructure and NodeJs Application
+# Cloud Formation Script to setup a sample aws cluster and NodeJs Application
 This cloud formation script will setup an infrastructure with a VPC, 2 public subnets and 2 private subnets in AWS  environment. It will setup a mysql database in 2 private subnets and sample nodejs application in 2 public subnets with optional load balancing/autoscaling feature.
 
 Following are the steps to be followed
