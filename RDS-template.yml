@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  my RDS instances
+Parameters:
+  VPCStackName: 
+    Description: The name of the stack VPC values
+    Type: String
+  DBName: 
+    Description: The name of the MySQL Database
+    Type: String
+  DBUserName: 
+    Description: The username of the MySQL Database
+    Type: String
+  DBPassword: 
+    Description: The password of the MySQL Database
+    Type: String
+    NoEcho: true
+Resources:
+  myDBSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      EC2VpcId: 
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCID'
+      GroupDescription: Allow web security group only
+      DBSecurityGroupIngress:
+        - 
+          EC2SecurityGroupId:
+            Fn::ImportValue: !Sub '${VPCStackName}-myWebSecurityGroup'
+      Tags:
+        - Key: Name
+          Value: my-DB-SG
+        - Key: Developer
+          Value: my
+  myDBSubnetGroupName:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties: 
+      DBSubnetGroupDescription: 'DB subnet group name'
+      DBSubnetGroupName: myDBSubnetGroup
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${VPCStackName}-PrivateSubnet01'
+        - Fn::ImportValue: !Sub '${VPCStackName}-PrivateSubnet02'
+      Tags:
+        - Key: Name
+          Value: my-DB-SubnetGroup
+        - Key: Developer
+          Value: my
+#  RDS instance Region Started
+  myRDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: "MySQL"
+      DBSecurityGroups:
+      - !Ref myDBSecurityGroup
+      AllocatedStorage: '5'
+      DBInstanceClass: db.t2.micro
+      DBName: !Ref DBName
+      DBInstanceIdentifier: !Ref DBName
+      MasterUsername: !Ref DBUserName
+      DBSubnetGroupName: !Ref myDBSubnetGroupName
+      MasterUserPassword: !Ref DBPassword
+      Tags:
+      - Key: Name
+        Value: my-EC2
+      - Key: Developer
+        Value: my
+#  RDS instance End
+Outputs:
+  myRDS:
+    Description: RDS
+    Value: !Ref myRDSInstance
+    Export:
+      Name: !Sub ${AWS::StackName}-myRDS

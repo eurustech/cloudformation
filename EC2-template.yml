@@ -1,0 +1,200 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  my EC2 instances for N.California
+Parameters:
+  VPCStackName: 
+    Description: The name of the stack VPC values
+    Type: String
+    Default: my-VPC
+  KeyPair: 
+    Description: The key value pair for ssh
+    Type: String
+    Default: my-key-pair
+  DBEndpoint:
+    Description: MySQL DB endpoint
+    Type: String
+    Default: mytestdb.cp9aeyx5qqrx.us-west-1.rds.amazonaws.com
+  DBUser:
+    Description: MySQL DB User
+    Type: String
+    Default: myUser
+  DBPassword:
+    Description: MySQL DB Password
+    Type: String
+    Default: StarGate22
+    NoEcho: true
+  DBName:
+    Description: MySQL DB Name
+    Type: String
+    Default: myTestDB
+Resources:
+# 1. EC2 instance Region Started
+  myEC2WebInstance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0bdb828fd58c52235
+      InstanceType: t2.micro
+      KeyName: !Ref KeyPair
+      BlockDeviceMappings:
+          - DeviceName: "/dev/xvda"
+            Ebs:
+              DeleteOnTermination: true
+              VolumeSize: 8
+      SecurityGroupIds:
+      - Fn::ImportValue: !Sub '${VPCStackName}-myWebSecurityGroup'
+      SubnetId:
+        Fn::ImportValue: !Sub '${VPCStackName}-PublicSubnet01'
+      Tags:
+      - Key: Name
+        Value: my-EC2
+      - Key: Developer
+        Value: my
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su
+          yum update -y
+          yum install -y httpd
+          cd /var/www/html
+          echo "<html><body>This is a test server!</body></html>" > index.html
+          service httpd start
+          chkconfig httpd on
+
+          sudo yum install git -y
+          git clone https://github.com/codetrash/rest-crud.git 
+          cd rest-crud
+          sed -i "24s/.*/        host     : '${DBEndpoint}',/" server.js
+          sed -i "25s/.*/        user     : '${DBUser}',/" server.js
+          sed -i "26s/.*/        password     : '${DBPassword}',/" server.js
+          sed -i "27s/.*/        database     : '${DBName}',/" server.js
+
+          yum install curl
+          curl --silent --location https://rpm.nodesource.com/setup_10.x | sudo bash -
+          sudo yum install -y nodejs
+          npm install
+          sudo npm install -g pm2
+          pm2 startup
+          pm2 start server.js
+          pm2 save
+
+          yum install mysql -y
+          mysql -h ${DBEndpoint} -P 3306 -u ${DBUser} -p${DBPassword}
+          use ${DBName}
+          source t_user.sql
+          exit
+  myEC2WebInstance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0bdb828fd58c52235
+      InstanceType: t2.micro
+      KeyName: !Ref KeyPair
+      BlockDeviceMappings:
+          - DeviceName: "/dev/xvda"
+            Ebs:
+              DeleteOnTermination: true
+              VolumeSize: 8
+      SecurityGroupIds:
+      - Fn::ImportValue: !Sub '${VPCStackName}-myWebSecurityGroup'
+      SubnetId:
+        Fn::ImportValue: !Sub '${VPCStackName}-PublicSubnet02'
+      Tags:
+      - Key: Name
+        Value: my-EC2
+      - Key: Developer
+        Value: my
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su
+          yum update -y
+          yum install -y httpd
+          cd /var/www/html
+          echo "<html><body>This is a test server!</body></html>" > index.html
+          service httpd start
+          chkconfig httpd on
+
+          sudo yum install git -y
+          git clone https://github.com/codetrash/rest-crud.git 
+          cd rest-crud
+          sed -i "24s/.*/        host     : '${DBEndpoint}',/" server.js
+          sed -i "25s/.*/        user     : '${DBUser}',/" server.js
+          sed -i "26s/.*/        password     : '${DBPassword}',/" server.js
+          sed -i "27s/.*/        database     : '${DBName}',/" server.js
+
+          yum install curl
+          curl --silent --location https://rpm.nodesource.com/setup_10.x | sudo bash -
+          sudo yum install -y nodejs
+          npm install
+          sudo npm install -g pm2
+          pm2 startup
+          pm2 start server.js
+          pm2 save
+
+          yum install mysql -y
+          mysql -h ${DBEndpoint} -P 3306 -u ${DBUser} -p${DBPassword}
+          use ${DBName}
+          source t_user.sql
+          exit
+
+#  EC2 instance End
+# Load Balancer Start
+  myLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      Type: application
+      Name: my-Web-LoadBalancer
+      SecurityGroups: 
+      - Fn::ImportValue: !Sub '${VPCStackName}-ELBSecurityGroup'
+      Subnets:
+      - Fn::ImportValue: !Sub '${VPCStackName}-PublicSubnet01'
+      - Fn::ImportValue: !Sub '${VPCStackName}-PublicSubnet02'
+      Tags:
+      - Key: Name
+        Value: my-ELB
+      - Key: Developer
+        Value: my
+  myTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: my-Web-TargetGroup
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: '/api/user'
+      HealthCheckPort: '3000'
+      HealthCheckProtocol: 'HTTP'
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Port: 3000
+      Protocol: 'HTTP'
+      UnhealthyThresholdCount: 2
+      Matcher:
+        HttpCode: '200'
+      VpcId: 
+        Fn::ImportValue: !Sub '${VPCStackName}-VPCID'
+      Targets:
+        - Id:
+            Ref: myEC2WebInstance1
+        - Id:
+            Ref: myEC2WebInstance2
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn:
+          Ref: myTargetGroup
+      LoadBalancerArn:
+        Ref: myLoadBalancer
+      Port: 80
+      Protocol: HTTP
+# Load Balancer End
+Outputs:
+  Instance1URL:
+    Description: The URL pointing to test web 1!.
+    Value: !Sub 'http://${myEC2WebInstance1.PublicIp}:3000/api/user'
+  Instance2URL:
+    Description: The URL pointing to test web 2!.
+    Value: !Sub 'http://${myEC2WebInstance1.PublicIp}:3000/api/user'
+  LoadBalancerURL:
+    Description: The URL pointing to ELB DNS.
+    Value: !GetAtt myLoadBalancer.DNSName
